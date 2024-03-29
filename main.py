@@ -15,7 +15,7 @@ channelNum = 124
 num_class = 6
 chan_spe = 50
 tlen = 32
-epochs = 5
+epochs = 70
 data = 'EEG72'
 
 batch_size = 64
@@ -71,19 +71,15 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             for epoch in range(epochs):
                 losses = []
                 accuracy = []
-                train_loop = tqdm(train_loader, total=len(train_loader))
 
-                f = 0
+                train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
-                    f += 1
                     x = x.cuda()
                     x_spe = x_spe.cuda()
                     y = y.cuda()
                     loss, y_ = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
                     corrects = (torch.argmax(y_, dim=1).data == y.data)
                     acc = corrects.cpu().int().sum().numpy() / batch_size
-                    losses.append(loss)
-                    accuracy.append(acc)
 
                     # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
@@ -92,15 +88,11 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
                 test_loop = tqdm(test_loader, total=len(test_loader))
-                sum_val_acc, flag, sum_val_loss = 0, 0, 0
                 for (xx, xx_spe, yy) in test_loop:
                     val_loss, val_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
                     val_acc = val_acc / batch_size
-                    sum_val_acc += val_acc
-                    sum_val_loss += val_loss
                     losses.append(val_loss)
                     accuracy.append(val_acc)
-                    flag += 1
 
                     # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
@@ -108,10 +100,9 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     test_loop.set_description(f'               Test ')
                     test_loop.set_postfix(loss=val_loss.item(), acc=val_acc, lr=current_lr)
 
-                # 计算并打印平均测试损失和准确率
-                avg_test_loss = sum_val_loss / flag
-                avg_test_acc = sum_val_acc / flag
-                print('\repoch 平均准确率：{:.6f}，平均损失：{:.6f}'.format(avg_test_acc, avg_test_loss))
+                avg_test_acc = np.sum(accuracy) / len(accuracy)
+                # print(accuracy)
+                print('\repoch 平均准确率：{:.6f}'.format(avg_test_acc))
 
             history[i][fold] = avg_test_acc
             print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))

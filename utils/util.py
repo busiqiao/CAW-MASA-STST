@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 
 
 def train(model, optimizer, criterion, x, x_spe, y):
