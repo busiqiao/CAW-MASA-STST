@@ -7,20 +7,20 @@ import matplotlib.pyplot as plt
 def transform():
     savePath = 'H:\\EEG\\EEGDATA\\EEG72-CWT\\'
 
-    data_shape = (5188, 124, 32)
-
     # 设置连续小波变换的参数
     widths = np.arange(1, 51)  # 尺度参数范围
 
-    # 创建空数组来存储结果
-    transformed_data = np.zeros((data_shape[0], data_shape[1], len(widths), data_shape[2]), dtype=np.complex64)
-
-    for f in range(1, 11):
+    for f in range(2, 11):
         # 读取数据
         file_path = f'H:\\EEG\\EEGDATA\\EEG72\\S{f}.mat'
         mat = scipy.io.loadmat(file_path)
         raw_data = np.asarray(mat['X_3D'])
         raw_data = np.transpose(raw_data, (2, 0, 1))
+
+        data_shape = raw_data.shape
+
+        # 创建空数组来存储结果
+        transformed_data = np.zeros((data_shape[0], data_shape[1], len(widths), data_shape[2]), dtype=np.complex64)
 
         # 对每个通道进行连续小波变换
         for i in range(data_shape[0]):
