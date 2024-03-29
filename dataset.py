@@ -26,5 +26,5 @@ class EEGDataset(Dataset):
     def __getitem__(self, index):
         feature1 = torch.tensor(self.data1[index, :, :], dtype=torch.float)
         feature2 = torch.tensor(self.data2[index, :, :, :], dtype=torch.float)
-        label = torch.tensor(self.label[index])
+        label = torch.tensor(self.label[index], dtype=torch.long)
         return feature1, feature2, label
