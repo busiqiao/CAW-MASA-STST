@@ -295,8 +295,8 @@ class CAW_MASA_STST(nn.Module):
 
 
 if __name__ == '__main__':
-    x = torch.randn(10, 128, 32).cuda()  # EEG data with 64 channel x 30 timepoint
-    x_spe = torch.randn(10, 128, 20, 32).cuda()  # time-frequency images of EEG with 64 channel x 20 frequency scale x 30 timepoint
-    model = CAW_MASA_STST(2, 128, 20, 32).cuda()
+    x = torch.randn(10, 64, 30).cuda()  # EEG data1 with 64 channel x 30 timepoint
+    x_spe = torch.randn(10, 64, 20, 30).cuda()  # time-frequency images of EEG with 64 channel x 20 frequency scale x 30 timepoint
+    model = CAW_MASA_STST(2, 64, 20, 30).cuda()
     pre_y = model(x, x_spe)
     print("pre_y.shape:", pre_y.shape)

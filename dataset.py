@@ -4,13 +4,16 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 
-class EEGDataset72(Dataset):
+class EEGDataset(Dataset):
 
-    def __init__(self, file_path, num_class=6):
-        mat = scipy.io.loadmat(file_path)
-        data = np.asarray(mat['X_3D'])
-        data = np.transpose(data, (2, 0, 1))
-        self.data = data[:, np.newaxis, :, :]
+    def __init__(self, file_path1, file_path2, num_class=6):
+        mat = scipy.io.loadmat(file_path1)
+        data1 = np.asarray(mat['X_3D'])
+        data1 = np.transpose(data1, (2, 0, 1))
+        self.data1 = data1[:, :, :]
+
+        date2 = np.load(file_path2)
+        self.data2 = date2[:, :, :, :]
 
         if num_class == 6:
             self.label = np.asarray(mat['categoryLabels']).squeeze() - 1
@@ -18,9 +21,10 @@ class EEGDataset72(Dataset):
             self.label = np.asarray(mat['exemplarLabels']).squeeze() - 1
 
     def __len__(self):
-        return self.data.shape[0]
+        return self.data1.shape[0]
 
     def __getitem__(self, index):
-        feature = torch.tensor(self.data[index, :, :, :], dtype=torch.float)
+        feature1 = torch.tensor(self.data1[index, :, :], dtype=torch.float)
+        feature2 = torch.tensor(self.data2[index, :, :, :], dtype=torch.float)
         label = torch.tensor(self.label[index])
-        return feature, label
+        return feature1, feature2, label
