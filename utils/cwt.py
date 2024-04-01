@@ -2,35 +2,38 @@ import numpy as np
 from scipy.signal import cwt, morlet
 import scipy.io
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
+def transform_channel(args):
+    i, raw_data, widths = args
+    data_shape = raw_data.shape
+    transformed_data = np.zeros((data_shape[1], len(widths), data_shape[2]), dtype=np.complex64)
+    for j in range(data_shape[1]):
+        signal = raw_data[i, j, :]
+        coefficients = cwt(signal, morlet, widths)
+        transformed_data[j, :, :] = coefficients
+    print(f'channel {i} done')
+    return transformed_data
 
 def transform():
     savePath = 'H:\\EEG\\EEGDATA\\EEG72-CWT\\'
-
-    # 设置连续小波变换的参数
-    widths = np.arange(1, 51)  # 尺度参数范围
+    widths = np.arange(1, 51)
 
     for f in range(2, 11):
-        # 读取数据
         file_path = f'H:\\EEG\\EEGDATA\\EEG72\\S{f}.mat'
         mat = scipy.io.loadmat(file_path)
         raw_data = np.asarray(mat['X_3D'])
         raw_data = np.transpose(raw_data, (2, 0, 1))
 
         data_shape = raw_data.shape
-
-        # 创建空数组来存储结果
         transformed_data = np.zeros((data_shape[0], data_shape[1], len(widths), data_shape[2]), dtype=np.complex64)
 
-        # 对每个通道进行连续小波变换
-        for i in range(data_shape[0]):
-            for j in range(data_shape[1]):
-                signal = raw_data[i, j, :]
-                # 进行连续小波变换
-                coefficients = cwt(signal, morlet, widths)  # 使用Morlet小波作为基函数
-                transformed_data[i, j, :, :] = coefficients
+        with Pool() as p:
+            results = p.map(transform_channel, [(i, raw_data, widths) for i in range(data_shape[0])])
 
-        # 保存结果
+        for i, result in enumerate(results):
+            transformed_data[i, :, :, :] = result
+
         np.save(savePath + f'S{f}_CWT.npy', transformed_data)
         print(f'S{f} done')
 
