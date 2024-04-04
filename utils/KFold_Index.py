@@ -25,9 +25,9 @@ def create_kfold_indices():
         print(f'Sub {i + 1} indices created.')
 
     # 保存所有的索引到同一个文件中
-    with open('kfold_indices.pkl', 'wb') as f:
+    with open(f'kfold_indices_{num_class}.pkl', 'wb') as f:
         pickle.dump(all_indices, f)
-    print('All indices created and saved to kfold_indices.pkl')
+    print(f'All indices created and saved to kfold_indices_{num_class}.pkl')
 
 
 if __name__ == '__main__':

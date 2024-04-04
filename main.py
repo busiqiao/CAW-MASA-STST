@@ -33,7 +33,7 @@ history = np.zeros((10, 10))
 if __name__ == '__main__':  # 10个人分别进行10折交叉验证
     dataPath1 = f'H:\\EEG\\EEGDATA\\{data}'
     dataPath2 = f'H:\\EEG\\EEGDATA\\{data}-CWT'
-    with open('utils/kfold_indices.pkl', 'rb') as f:
+    with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
     print(
