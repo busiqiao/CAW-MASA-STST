@@ -10,10 +10,11 @@ from model import CAW_MASA_STST
 from dataset import EEGDataset
 import torch
 from utils.util import train, test
+from sklearn.model_selection import train_test_split
 
-channelNum = 124
+channelNum = 20
 num_class = 6
-chan_spe = 50
+chan_spe = 25
 tlen = 32
 epochs = 70
 data = 'EEG72'
@@ -41,18 +42,24 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
         .format(data, num_class, epochs, batch_size, k, seed_value))
 
     for i in range(k):
-        dataset = EEGDataset(file_path1=dataPath1 + f'\\S{i + 1}.mat', file_path2=dataPath2 + f'\\S{i + 1}_CWT.npy',
+        dataset = EEGDataset(file_path1=dataPath1 + f'\\S{i + 1}.mat', file_path2=dataPath2 + f'\\sub{i + 1}_cwt.npy',
                              num_class=num_class)
 
         for fold, (train_i, test_i) in enumerate(all_indices[i]):
+            train_i, val_i = train_test_split(train_i, test_size=1/9, random_state=42)
+
             train_sampler = SubsetRandomSampler(train_i)
+            val_sampler = SubsetRandomSampler(val_i)
             test_sampler = SubsetRandomSampler(test_i)
             train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=0,
                                       drop_last=True)
+            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=batch_size, num_workers=0,
+                                    drop_last=True)
             test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=0,
                                      drop_last=True)
 
             n_train = len(train_loader) * batch_size
+            n_val = len(val_loader) * batch_size
             n_test = len(test_loader) * batch_size
 
             # 创建模型
@@ -64,15 +71,17 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
             if i == 0 and fold == 0:
-                summary(model, input_size=[(10, 124, 32), (10, 124, 50, 32)])
+                summary(model, input_size=[(10, 20, 32), (10, 20, 25, 32)])
 
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
 
             losses = []
             accuracy = []
+            best_val_loss = float('inf')
+            best_model = None
             for epoch in range(epochs):
-
+                # 训练阶段
                 train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
                     x = x.cuda()
@@ -88,18 +97,34 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
+                # 验证阶段
+                val_loop = tqdm(val_loader, total=len(val_loader))
+                val_loss = None
+                for (x_val, x_spe_val, y_val) in val_loop:
+                    x_val = x_val.cuda()
+                    x_spe_val = x_spe_val.cuda()
+                    y_val = y_val.cuda()
+                    val_loss, y_val_ = test(model=model, criterion=criterion, x=x_val, x_spe=x_spe_val, y=y_val)
+                    corrects_val = (torch.argmax(y_val_, dim=1).data == y_val.data)
+                    val_acc = corrects_val.cpu().int().sum().numpy() / batch_size
+                    val_loop.set_description(f'               Validation')
+                    val_loop.set_postfix(val_loss=val_loss.item(), val_acc=val_acc)
+
+                # 保存验证集上精度最好的模型
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_model = model.state_dict()
+
+            # 测试阶段
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
-                val_loss, val_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
-                val_acc = val_acc / batch_size
-                losses.append(val_loss)
-                accuracy.append(val_acc)
-
-                # 获取当前学习率
-                current_lr = optimizer.param_groups[0]['lr']
+                test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
+                test_loss = test_loss / batch_size
+                losses.append(test_loss)
+                accuracy.append(test_acc)
 
                 test_loop.set_description(f'                 Test ')
-                test_loop.set_postfix(loss=val_loss.item(), acc=val_acc, lr=current_lr)
+                test_loop.set_postfix(loss=test_loss.item(), acc=test_acc)
 
             avg_test_acc = np.sum(accuracy) / len(accuracy)
             history[i][fold] = avg_test_acc

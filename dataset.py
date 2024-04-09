@@ -4,12 +4,25 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 
+def channelSelect(X, channelNum):
+    mstd = X.mean(0).std(1)
+    stdIdx = np.argsort(mstd)
+    selIdx = stdIdx[-channelNum:]
+    sIdx = [False] * X.shape[1]
+    for i in range(X.shape[1]):
+        if i in selIdx:
+            sIdx[i] = True
+    X = X[:, sIdx, :]
+    return X
+
+
 class EEGDataset(Dataset):
 
     def __init__(self, file_path1, file_path2, num_class=6):
         mat = scipy.io.loadmat(file_path1)
         data1 = np.asarray(mat['X_3D'])
         data1 = np.transpose(data1, (2, 0, 1))
+        data1 = channelSelect(data1, 20)
         self.data1 = torch.from_numpy(data1[:, :, :]).float()
 
         date2 = np.load(file_path2)
