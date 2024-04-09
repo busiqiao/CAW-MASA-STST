@@ -112,6 +112,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     best_model = model.state_dict()
 
             # 测试阶段
+            model.load_state_dict(best_model)  # 加载最佳模型
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
