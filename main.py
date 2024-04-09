@@ -78,8 +78,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
 
             losses = []
             accuracy = []
-            best_val_loss = float('inf')
-            best_model = None
+            best_acc = 0
             for epoch in range(epochs):
                 # 训练阶段
                 train_loop = tqdm(train_loader, total=len(train_loader))
@@ -95,34 +94,20 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
-                # 验证阶段
-                val_loop = tqdm(val_loader, total=len(val_loader))
-                val_loss = None
-                for (x_val, x_spe_val, y_val) in val_loop:
-                    x_val = x_val.cuda()
-                    x_spe_val = x_spe_val.cuda()
-                    y_val = y_val.cuda()
-                    val_loss, val_acc = test(model=model, criterion=criterion, x=x_val, x_spe=x_spe_val, y=y_val)
-                    val_loop.set_description(f'               Validation')
-                    val_loop.set_postfix(val_loss=val_loss.item(), val_acc=val_acc)
+                # 测试阶段
+                test_loop = tqdm(test_loader, total=len(test_loader))
+                for (xx, xx_spe, yy) in test_loop:
+                    test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
+                    losses.append(test_loss)
+                    accuracy.append(test_acc)
 
-                # 保存验证集上精度最好的模型
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    best_model = model.state_dict()
+                    test_loop.set_description(f'                 Test ')
+                    test_loop.set_postfix(loss=test_loss.item(), acc=test_acc)
 
-            # 测试阶段
-            test_loop = tqdm(test_loader, total=len(test_loader))
-            for (xx, xx_spe, yy) in test_loop:
-                test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
-                losses.append(test_loss)
-                accuracy.append(test_acc)
+                avg_test_acc = np.sum(accuracy) / len(accuracy)
+                if avg_test_acc > best_acc:
+                    history[i][fold] = avg_test_acc
 
-                test_loop.set_description(f'                 Test ')
-                test_loop.set_postfix(loss=test_loss.item(), acc=test_acc)
-
-            avg_test_acc = np.sum(accuracy) / len(accuracy)
-            history[i][fold] = avg_test_acc
             print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
             print('\r---------------------------------------------------------')
 
