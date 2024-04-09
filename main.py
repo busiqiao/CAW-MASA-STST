@@ -46,20 +46,15 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                              num_class=num_class)
 
         for fold, (train_i, test_i) in enumerate(all_indices[i]):
-            train_i, val_i = train_test_split(train_i, test_size=1/9, random_state=42)
 
             train_sampler = SubsetRandomSampler(train_i)
-            val_sampler = SubsetRandomSampler(val_i)
             test_sampler = SubsetRandomSampler(test_i)
             train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=3, prefetch_factor=2,
                                       drop_last=True)
-            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=batch_size, num_workers=1, prefetch_factor=1,
-                                    drop_last=True)
             test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=1,prefetch_factor=1,
                                      drop_last=True)
 
             n_train = len(train_loader) * batch_size
-            n_val = len(val_loader) * batch_size
             n_test = len(test_loader) * batch_size
 
             # 创建模型
