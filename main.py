@@ -16,7 +16,7 @@ channelNum = 20
 num_class = 6
 chan_spe = 25
 tlen = 32
-epochs = 70
+epochs = 2
 data = 'EEG72'
 
 batch_size = 64
@@ -51,11 +51,11 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             train_sampler = SubsetRandomSampler(train_i)
             val_sampler = SubsetRandomSampler(val_i)
             test_sampler = SubsetRandomSampler(test_i)
-            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=0,
+            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=3, prefetch_factor=2,
                                       drop_last=True)
-            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=batch_size, num_workers=0,
+            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=batch_size, num_workers=1, prefetch_factor=1,
                                     drop_last=True)
-            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=0,
+            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=1,prefetch_factor=1,
                                      drop_last=True)
 
             n_train = len(train_loader) * batch_size
@@ -87,9 +87,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     x = x.cuda()
                     x_spe = x_spe.cuda()
                     y = y.cuda()
-                    loss, y_ = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
-                    corrects = (torch.argmax(y_, dim=1).data == y.data)
-                    acc = corrects.cpu().int().sum().numpy() / batch_size
+                    loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
                     # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
@@ -104,9 +102,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     x_val = x_val.cuda()
                     x_spe_val = x_spe_val.cuda()
                     y_val = y_val.cuda()
-                    val_loss, y_val_ = test(model=model, criterion=criterion, x=x_val, x_spe=x_spe_val, y=y_val)
-                    corrects_val = (torch.argmax(y_val_, dim=1).data == y_val.data)
-                    val_acc = corrects_val.cpu().int().sum().numpy() / batch_size
+                    val_loss, val_acc = test(model=model, criterion=criterion, x=x_val, x_spe=x_spe_val, y=y_val)
                     val_loop.set_description(f'               Validation')
                     val_loop.set_postfix(val_loss=val_loss.item(), val_acc=val_acc)
 
@@ -119,7 +115,6 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
-                test_loss = test_loss / batch_size
                 losses.append(test_loss)
                 accuracy.append(test_acc)
 

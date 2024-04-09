@@ -8,7 +8,9 @@ def train(model, optimizer, criterion, x, x_spe, y):
     loss = criterion(y_, y)
     loss.backward()
     optimizer.step()
-    return loss, y_
+    corrects = (torch.argmax(y_, dim=1).data == y.data)
+    acc = corrects.cpu().int().sum().numpy() / x.size(0)
+    return loss, acc
 
 
 def test(model, criterion, x, x_spe, y):
@@ -19,5 +21,5 @@ def test(model, criterion, x, x_spe, y):
     y_ = model(x=x, xcwt=x_spe)
     loss = criterion(y_, y)
     corrects = (torch.argmax(y_, dim=1).data == y.data)
-    acc = corrects.cpu().int().sum().numpy()
+    acc = corrects.cpu().int().sum().numpy() / x.size(0)
     return loss, acc
