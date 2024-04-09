@@ -16,7 +16,7 @@ channelNum = 20
 num_class = 6
 chan_spe = 25
 tlen = 32
-epochs = 2
+epochs = 70
 data = 'EEG72'
 
 batch_size = 64
@@ -76,42 +76,47 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
 
-            losses = []
-            accuracy = []
             best_val_loss = float('inf')
+            best_val_acc = 0
             best_model = None
             for epoch in range(epochs):
                 # 训练阶段
                 train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
-                    x = x.cuda()
-                    x_spe = x_spe.cuda()
-                    y = y.cuda()
                     loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
                     # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
-
                     train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
                 # 验证阶段
                 val_loop = tqdm(val_loader, total=len(val_loader))
-                val_loss = None
+                val_losses = []
+                val_accuracy = []
                 for (x_val, x_spe_val, y_val) in val_loop:
-                    x_val = x_val.cuda()
-                    x_spe_val = x_spe_val.cuda()
-                    y_val = y_val.cuda()
                     val_loss, val_acc = test(model=model, criterion=criterion, x=x_val, x_spe=x_spe_val, y=y_val)
+                    val_losses.append(val_loss.item())
+                    val_accuracy.append(val_acc)
+
                     val_loop.set_description(f'               Validation')
                     val_loop.set_postfix(val_loss=val_loss.item(), val_acc=val_acc)
 
-                # 保存验证集上精度最好的模型
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
+                # 以损失为准保存best_model
+                avg_val_loss = np.mean(val_losses)
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
                     best_model = model.state_dict()
 
+                # # 以精度为准保存best_model
+                # avg_val_acc = np.mean(val_accuracy)
+                # if avg_val_acc > best_val_acc:
+                #     best_val_acc = avg_val_acc
+                #     best_model = model.state_dict()
+
             # 测试阶段
+            losses = []
+            accuracy = []
             model.load_state_dict(best_model)  # 加载最佳模型
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
@@ -122,7 +127,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                 test_loop.set_description(f'                 Test ')
                 test_loop.set_postfix(loss=test_loss.item(), acc=test_acc)
 
-            avg_test_acc = np.sum(accuracy) / len(accuracy)
+            avg_test_acc = np.mean(accuracy)
             history[i][fold] = avg_test_acc
             print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
             print('\r---------------------------------------------------------')

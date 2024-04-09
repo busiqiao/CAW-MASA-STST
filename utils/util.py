@@ -2,6 +2,9 @@ import torch
 
 
 def train(model, optimizer, criterion, x, x_spe, y):
+    x = x.cuda()
+    x_spe = x_spe.cuda()
+    y = y.cuda()
     model.train()
     optimizer.zero_grad()
     y_ = model(x=x, xcwt=x_spe)
