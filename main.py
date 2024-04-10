@@ -10,13 +10,12 @@ from model import CAW_MASA_STST
 from dataset import EEGDataset
 import torch
 from utils.util import train, test
-from sklearn.model_selection import train_test_split
 
 channelNum = 20
 num_class = 6
 chan_spe = 25
 tlen = 32
-epochs = 2
+epochs = 70
 data = 'EEG72'
 
 batch_size = 64
@@ -49,17 +48,14 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
 
             train_sampler = SubsetRandomSampler(train_i)
             test_sampler = SubsetRandomSampler(test_i)
-            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=3, prefetch_factor=2,
-                                      drop_last=True)
-            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=1,prefetch_factor=1,
-                                     drop_last=True)
+            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=3, drop_last=True)
+            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=1, drop_last=True)
 
             n_train = len(train_loader) * batch_size
             n_test = len(test_loader) * batch_size
 
             # 创建模型
-            model = CAW_MASA_STST.CAW_MASA_STST(classNum=num_class, channelNum=channelNum, chan_spe=chan_spe,
-                                                tlen=tlen).cuda()
+            model = CAW_MASA_STST.CAW_MASA_STST(classNum=num_class, channelNum=channelNum, chan_spe=chan_spe, tlen=tlen).cuda()
 
             # 设置网络参数
             criterion = nn.CrossEntropyLoss()  # 交叉熵损失
@@ -71,25 +67,20 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
 
-            losses = []
-            accuracy = []
             best_acc = 0
             for epoch in range(epochs):
                 # 训练阶段
                 train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
-                    x = x.cuda()
-                    x_spe = x_spe.cuda()
-                    y = y.cuda()
                     loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
-                    # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
-
                     train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
                 # 测试阶段
+                losses = []
+                accuracy = []
                 test_loop = tqdm(test_loader, total=len(test_loader))
                 for (xx, xx_spe, yy) in test_loop:
                     test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
@@ -99,7 +90,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     test_loop.set_description(f'                 Test ')
                     test_loop.set_postfix(loss=test_loss.item(), acc=test_acc)
 
-                avg_test_acc = np.sum(accuracy) / len(accuracy)
+                avg_test_acc = np.mean(accuracy)
                 if avg_test_acc > best_acc:
                     history[i][fold] = avg_test_acc
 
