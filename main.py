@@ -16,7 +16,8 @@ channelNum = 20
 num_class = 6
 chan_spe = 25
 tlen = 32
-epochs = 70
+epochs = 1
+base = 'acc'
 data = 'EEG72'
 
 batch_size = 64
@@ -26,19 +27,19 @@ seed_value = 3407
 
 np.random.seed(seed_value)
 random.seed(seed_value)
-os.environ['PYTHONHASHSEED'] = str(seed_value)  # 为了禁止hash随机化，使得实验可复现。
-torch.manual_seed(seed_value)  # 为CPU设置随机种子
-torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
+os.environ['PYTHONHASHSEED'] = str(seed_value)  # hash seed
+torch.manual_seed(seed_value)  # CPU seed
+torch.cuda.manual_seed(seed_value)  # GPU seed
 history = np.zeros((10, 10))
 
-if __name__ == '__main__':  # 10个人分别进行10折交叉验证
+if __name__ == '__main__':
     dataPath1 = f'H:\\EEG\\EEGDATA\\{data}'
     dataPath2 = f'H:\\EEG\\EEGDATA\\{data}-CWT'
     with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
     print(
-        '\r参数设置: dataset={}, num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}'
+        '\rParameters: dataset={}, num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}'
         .format(data, num_class, epochs, batch_size, k, seed_value))
 
     for i in range(k):
@@ -62,35 +63,34 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
             n_val = len(val_loader) * batch_size
             n_test = len(test_loader) * batch_size
 
-            # 创建模型
+            # create model
             model = CAW_MASA_STST.CAW_MASA_STST(classNum=num_class, channelNum=channelNum, chan_spe=chan_spe,
                                                 tlen=tlen).cuda()
 
-            # 设置网络参数
-            criterion = nn.CrossEntropyLoss()  # 交叉熵损失
+            criterion = nn.CrossEntropyLoss()
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+            # print model summary
             if i == 0 and fold == 0:
-                summary(model, input_size=[(10, 20, 32), (10, 20, 25, 32)])
+                summary(model, input_size=[(10, 124, 32), (10, 20, 25, 32)])
 
             if fold == 0:
-                print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
+                print('\rSub{}:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
 
             best_val_loss = float('inf')
             best_val_acc = 0
             best_model = None
             for epoch in range(epochs):
-                # 训练阶段
+                # train
                 train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
                     loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
-                    # 获取当前学习率
                     current_lr = optimizer.param_groups[0]['lr']
                     train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
-                # 验证阶段
+                # validation
                 val_loop = tqdm(val_loader, total=len(val_loader))
                 val_losses = []
                 val_accuracy = []
@@ -102,22 +102,26 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
                     val_loop.set_description(f'               Validation')
                     val_loop.set_postfix(val_loss=val_loss.item(), val_acc=val_acc)
 
-                # 以损失为准保存best_model
-                avg_val_loss = np.mean(val_losses)
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
-                    best_model = model.state_dict()
+                # save best_model
+                if base == 'loss':
+                    # loss
+                    avg_val_loss = np.mean(val_losses)
+                    if avg_val_loss < best_val_loss:
+                        best_val_loss = avg_val_loss
+                        best_model = model.state_dict()
+                elif base == 'acc':
+                    # acc
+                    avg_val_acc = np.mean(val_accuracy)
+                    if avg_val_acc > best_val_acc:
+                        best_val_acc = avg_val_acc
+                        best_model = model.state_dict()
+                else:
+                    raise ValueError('base must be "loss" or "acc"')
 
-                # # 以精度为准保存best_model
-                # avg_val_acc = np.mean(val_accuracy)
-                # if avg_val_acc > best_val_acc:
-                #     best_val_acc = avg_val_acc
-                #     best_model = model.state_dict()
-
-            # 测试阶段
+            # test
             losses = []
             accuracy = []
-            model.load_state_dict(best_model)  # 加载最佳模型
+            model.load_state_dict(best_model)  # load best_model
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
@@ -129,12 +133,12 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
 
             avg_test_acc = np.mean(accuracy)
             history[i][fold] = avg_test_acc
-            print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
+            print('\rSub{} kfold-{} test acc: {}'.format(i + 1, fold + 1, history[i][fold]))
             print('\r---------------------------------------------------------')
 
         print(history[i])
-        print('\r受试者{}训练完成，平均准确率：{}'.format(i + 1, np.mean(history[i], axis=0)))
+        print('\rSub{} train down，average acc: {}'.format(i + 1, np.mean(history[i], axis=0)))
         print('\r*************************************************************')
 
     print(history)
-    print('\r训练完成，{}类平均准确率：{}'.format(num_class, np.mean(history)))
+    print('\rTrain Down，{}class average acc: {}'.format(num_class, np.mean(history)))
