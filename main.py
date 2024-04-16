@@ -16,7 +16,7 @@ channelNum = 20
 num_class = 6
 chan_spe = 25
 tlen = 32
-epochs = 1
+epochs = 70
 base = 'acc'
 data = 'EEG72'
 
@@ -33,8 +33,8 @@ torch.cuda.manual_seed(seed_value)  # GPU seed
 history = np.zeros((10, 10))
 
 if __name__ == '__main__':
-    dataPath1 = f'H:\\EEG\\EEGDATA\\{data}'
-    dataPath2 = f'H:\\EEG\\EEGDATA\\{data}-CWT'
+    dataPath1 = f'/data/{data}'
+    dataPath2 = f'/data/{data}-CWT20'
     with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
@@ -43,7 +43,7 @@ if __name__ == '__main__':
         .format(data, num_class, epochs, batch_size, k, seed_value))
 
     for i in range(k):
-        dataset = EEGDataset(file_path1=dataPath1 + f'\\S{i + 1}.mat', file_path2=dataPath2 + f'\\sub{i + 1}_cwt.npy',
+        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/S{i + 1}_cwt.npy',
                              num_class=num_class)
 
         for fold, (train_i, test_i) in enumerate(all_indices[i]):
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
             # print model summary
             if i == 0 and fold == 0:
-                summary(model, input_size=[(10, 124, 32), (10, 20, 25, 32)])
+                summary(model, input_size=[(10, 20, 32), (10, 20, 25, 32)])
 
             if fold == 0:
                 print('\rSub{}:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
