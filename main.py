@@ -12,7 +12,7 @@ import torch
 from utils.util import train, test
 
 channelNum = 20
-num_class = 6
+num_class = 72
 chan_spe = 25
 tlen = 32
 epochs = 70
@@ -31,8 +31,8 @@ torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
 history = np.zeros((10, 10))
 
 if __name__ == '__main__':  # 10个人分别进行10折交叉验证
-    dataPath1 = f'H:\\EEG\\EEGDATA\\{data}'
-    dataPath2 = f'H:\\EEG\\EEGDATA\\{data}-CWT'
+    dataPath1 = f'/data/{data}'
+    dataPath2 = f'/data/{data}-CWT'
     with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':  # 10个人分别进行10折交叉验证
         .format(data, num_class, epochs, batch_size, k, seed_value))
 
     for i in range(k):
-        dataset = EEGDataset(file_path1=dataPath1 + f'\\S{i + 1}.mat', file_path2=dataPath2 + f'\\sub{i + 1}_cwt.npy',
+        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/sub{i + 1}_cwt.npy',
                              num_class=num_class)
 
         for fold, (train_i, test_i) in enumerate(all_indices[i]):
