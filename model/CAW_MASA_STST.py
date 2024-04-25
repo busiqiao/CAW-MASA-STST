@@ -231,7 +231,7 @@ class CAW_MASA_STST(nn.Module):
             nn.AdaptiveAvgPool2d((1, 8)),
             nn.Dropout2d(0.5)
         )
-        self.spa1 = ConvBlock(1, 40, (channelNum, 1))
+        self.spa1 = ConvBlock(1, 40, (124, 1))
         self.spa2 = nn.Sequential(
             ConvBlock(40, 30, (1, 13)),
             ConvBlock(30, 10, (1, 11)),
@@ -254,7 +254,7 @@ class CAW_MASA_STST(nn.Module):
         )
         self.fusinTB = STSTransformerBlock(40, 40)
 
-        self.caw = CAW(chan_spe, 2)
+        self.caw = CAW(124, 2)
 
         self.feaLen = (100) * 8
         self.classify = nn.Sequential(
@@ -263,7 +263,7 @@ class CAW_MASA_STST(nn.Module):
         )
 
     def forward(self, x, xcwt):
-        xcwt, _ = self.caw(xcwt)
+        x, _ = self.caw(x)
         # MASA
         xcwts = xcwt.chunk(self.chunks, dim=2)
         out1s = []
@@ -295,8 +295,8 @@ class CAW_MASA_STST(nn.Module):
 
 
 if __name__ == '__main__':
-    x = torch.randn(10, 64, 30).cuda()  # EEG data1 with 64 channel x 30 timepoint
-    x_spe = torch.randn(10, 64, 20, 30).cuda()  # time-frequency images of EEG with 64 channel x 20 frequency scale x 30 timepoint
-    model = CAW_MASA_STST(2, 64, 20, 30).cuda()
+    x = torch.randn(10, 124, 32).cuda()  # EEG data1 with 64 channel x 30 timepoint
+    x_spe = torch.randn(10, 20, 25, 32).cuda()  # time-frequency images of EEG with 64 channel x 20 frequency scale x 30 timepoint
+    model = CAW_MASA_STST(72, 20, 25, 32).cuda()
     pre_y = model(x, x_spe)
     print("pre_y.shape:", pre_y.shape)

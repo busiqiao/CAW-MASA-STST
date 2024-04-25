@@ -22,7 +22,6 @@ class EEGDataset(Dataset):
         mat = scipy.io.loadmat(file_path1)
         data1 = np.asarray(mat['X_3D'])
         data1 = np.transpose(data1, (2, 0, 1))
-        data1 = channelSelect(data1, 20)
         self.data1 = torch.from_numpy(data1[:, :, :]).float()
 
         date2 = np.load(file_path2)

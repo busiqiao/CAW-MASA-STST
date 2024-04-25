@@ -1,19 +1,20 @@
 import os
-import pickle
 import random
+
 import numpy as np
+import torch
+from sklearn.model_selection import train_test_split, KFold
 from torch import nn
 from torch.utils.data import SubsetRandomSampler, DataLoader
 from torchinfo import summary
 from tqdm import tqdm
-from model import CAW_MASA_STST
+
 from dataset import EEGDataset
-import torch
+from model import CAW_MASA_STST
 from utils.util import train, test
-from sklearn.model_selection import train_test_split
 
 channelNum = 20
-num_class = 6
+num_class = 72
 chan_spe = 25
 tlen = 32
 epochs = 70
@@ -31,22 +32,24 @@ os.environ['PYTHONHASHSEED'] = str(seed_value)  # hash seed
 torch.manual_seed(seed_value)  # CPU seed
 torch.cuda.manual_seed(seed_value)  # GPU seed
 history = np.zeros((10, 10))
+kf = KFold(n_splits=k, shuffle=True, random_state=seed_value)
 
 if __name__ == '__main__':
     dataPath1 = f'/data/{data}'
     dataPath2 = f'/data/{data}-CWT20'
-    with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
-        all_indices = pickle.load(f)
+    output_path = f'./outputs/{num_class}/test'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
     print(
         '\rParameters: dataset={}, num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}'
         .format(data, num_class, epochs, batch_size, k, seed_value))
 
     for i in range(k):
-        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/S{i + 1}_cwt.npy',
+        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/sub{i + 1}_cwt.npy',
                              num_class=num_class)
 
-        for fold, (train_i, test_i) in enumerate(all_indices[i]):
+        for fold, (train_i, test_i) in enumerate(kf.split(dataset)):
             train_i, val_i = train_test_split(train_i, test_size=1/9, random_state=42)
 
             train_sampler = SubsetRandomSampler(train_i)
@@ -72,7 +75,7 @@ if __name__ == '__main__':
 
             # print model summary
             if i == 0 and fold == 0:
-                summary(model, input_size=[(10, 20, 32), (10, 20, 25, 32)])
+                summary(model, input_size=[(10, 124, 32), (10, 20, 25, 32)])
 
             if fold == 0:
                 print('\rSub{}:  train_num={}, test_num={}'.format(int(i + 1), n_train, n_test))
@@ -108,20 +111,20 @@ if __name__ == '__main__':
                     avg_val_loss = np.mean(val_losses)
                     if avg_val_loss < best_val_loss:
                         best_val_loss = avg_val_loss
-                        best_model = model.state_dict()
+                        torch.save(model, f'{output_path}/best_model_{i}_{fold}.pth')
                 elif base == 'acc':
                     # acc
                     avg_val_acc = np.mean(val_accuracy)
                     if avg_val_acc > best_val_acc:
                         best_val_acc = avg_val_acc
-                        best_model = model.state_dict()
+                        torch.save(model, f'{output_path}/best_model_{i}_{fold}.pth')
                 else:
                     raise ValueError('base must be "loss" or "acc"')
 
             # test
             losses = []
             accuracy = []
-            model.load_state_dict(best_model)  # load best_model
+            torch.load(f'{output_path}/best_model_{i}_{fold}.pth')  # load best_model
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
