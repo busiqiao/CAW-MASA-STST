@@ -1,6 +1,7 @@
 import os
 import random
 
+import argparse
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split, KFold
@@ -11,43 +12,34 @@ from tqdm import tqdm
 
 from dataset import EEGDataset
 from model import CAW_MASA_STST
+from utils.save_results import save_results
 from utils.util import train, test
 
-channelNum = 20
-num_class = 72
-chan_spe = 25
-tlen = 32
-epochs = 70
-base = 'acc'
-data = 'EEG72'
 
-batch_size = 64
-k = 10
-Fs = 62.5
-seed_value = 3407
+def main(args):
+    base = 'loss'
+    data = 'EEG72'
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    os.environ['PYTHONHASHSEED'] = str(args.seed)  # hash seed
+    torch.manual_seed(args.seed)  # CPU seed
+    torch.cuda.manual_seed(args.seed)  # GPU seed
+    history = np.zeros((10, 10))
+    kf = KFold(n_splits=args.k, shuffle=True, random_state=args.seed)
 
-np.random.seed(seed_value)
-random.seed(seed_value)
-os.environ['PYTHONHASHSEED'] = str(seed_value)  # hash seed
-torch.manual_seed(seed_value)  # CPU seed
-torch.cuda.manual_seed(seed_value)  # GPU seed
-history = np.zeros((10, 10))
-kf = KFold(n_splits=k, shuffle=True, random_state=seed_value)
-
-if __name__ == '__main__':
     dataPath1 = f'/data/{data}'
     dataPath2 = f'/data/{data}-CWT20'
-    output_path = f'./outputs/{num_class}/test'
+    output_path = f'./outputs/{args.num_class}/test'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
     print(
         '\rParameters: dataset={}, num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}'
-        .format(data, num_class, epochs, batch_size, k, seed_value))
+        .format(data, args.num_class, args.epochs, args.batch_size, args.k, args.seed))
 
-    for i in range(k):
+    for i in range(args.k):
         dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/sub{i + 1}_cwt.npy',
-                             num_class=num_class)
+                             num_class=args.num_class)
 
         for fold, (train_i, test_i) in enumerate(kf.split(dataset)):
             train_i, val_i = train_test_split(train_i, test_size=1/9, random_state=42)
@@ -55,20 +47,20 @@ if __name__ == '__main__':
             train_sampler = SubsetRandomSampler(train_i)
             val_sampler = SubsetRandomSampler(val_i)
             test_sampler = SubsetRandomSampler(test_i)
-            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size, num_workers=3, prefetch_factor=2,
+            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=args.batch_size, num_workers=3, prefetch_factor=2,
                                       drop_last=True)
-            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=batch_size, num_workers=1, prefetch_factor=1,
+            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=args.batch_size, num_workers=1, prefetch_factor=1,
                                     drop_last=True)
-            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=batch_size, num_workers=1,prefetch_factor=1,
+            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=args.batch_size, num_workers=1,prefetch_factor=1,
                                      drop_last=True)
 
-            n_train = len(train_loader) * batch_size
-            n_val = len(val_loader) * batch_size
-            n_test = len(test_loader) * batch_size
+            n_train = len(train_loader) * args.batch_size
+            n_val = len(val_loader) * args.batch_size
+            n_test = len(test_loader) * args.batch_size
 
             # create model
-            model = CAW_MASA_STST.CAW_MASA_STST(classNum=num_class, channelNum=channelNum, chan_spe=chan_spe,
-                                                tlen=tlen).cuda()
+            model = CAW_MASA_STST.CAW_MASA_STST(classNum=args.num_class, channelNum=args.channelNum, chan_spe=args.chan_spe,
+                                                tlen=args.tlen).cuda()
 
             criterion = nn.CrossEntropyLoss()
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -83,14 +75,14 @@ if __name__ == '__main__':
             best_val_loss = float('inf')
             best_val_acc = 0
             best_model = None
-            for epoch in range(epochs):
+            for epoch in range(args.epochs):
                 # train
                 train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, x_spe, y) in train_loop:
                     loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
                     current_lr = optimizer.param_groups[0]['lr']
-                    train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
+                    train_loop.set_description(f'Epoch [{epoch + 1}/{args.epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
                 # validation
@@ -144,4 +136,24 @@ if __name__ == '__main__':
         print('\r*************************************************************')
 
     print(history)
-    print('\rTrain Down，{}class average acc: {}'.format(num_class, np.mean(history)))
+    print('\rTrain Down，{}class average acc: {}'.format(args.num_class, np.mean(history)))
+
+    # save result
+    save_results(history, output_path, args.num_class, args.batch_size, args.epochs)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='CAW_MASA_STST')
+    parser.add_argument('--num_class', type=int, default=72, help='number of classes')
+    parser.add_argument('--channelNum', type=int, default=20, help='number of origin channels')
+    parser.add_argument('--chan_spe', type=int, default=25, help='number of cwt channels')
+    parser.add_argument('--tlen', type=int, default=32, help='time length')
+    parser.add_argument('--epochs', type=int, default=1, help='number of epochs')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+    parser.add_argument('--k', type=int, default=2, help='k fold')
+    parser.add_argument('--seed', type=int, default=42, help='manual seed')
+    return parser.parse_args()
+
+if __name__ == '__main__':
+    arg = parse_args()
+    main(arg)
