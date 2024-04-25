@@ -1,4 +1,5 @@
 import os
+import sys
 import random
 
 import argparse
@@ -29,7 +30,7 @@ def main(args):
 
     dataPath1 = f'/data/{data}'
     dataPath2 = f'/data/{data}-CWT20'
-    output_path = f'./outputs/{args.num_class}/test'
+    output_path = f'./outputs/{args.num_class}/train'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -77,7 +78,7 @@ def main(args):
             best_model = None
             for epoch in range(args.epochs):
                 # train
-                train_loop = tqdm(train_loader, total=len(train_loader))
+                train_loop = tqdm(train_loader, total=len(train_loader), file=sys.stdout)
                 for (x, x_spe, y) in train_loop:
                     loss, acc = train(model=model, optimizer=optimizer, criterion=criterion, x=x, x_spe=x_spe, y=y)
 
@@ -86,7 +87,7 @@ def main(args):
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=current_lr)
 
                 # validation
-                val_loop = tqdm(val_loader, total=len(val_loader))
+                val_loop = tqdm(val_loader, total=len(val_loader), file=sys.stdout)
                 val_losses = []
                 val_accuracy = []
                 for (x_val, x_spe_val, y_val) in val_loop:
@@ -117,7 +118,7 @@ def main(args):
             losses = []
             accuracy = []
             torch.load(f'{output_path}/best_model_{i}_{fold}.pth')  # load best_model
-            test_loop = tqdm(test_loader, total=len(test_loader))
+            test_loop = tqdm(test_loader, total=len(test_loader), file=sys.stdout)
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
                 losses.append(test_loss)
@@ -148,9 +149,9 @@ def parse_args():
     parser.add_argument('--channelNum', type=int, default=20, help='number of origin channels')
     parser.add_argument('--chan_spe', type=int, default=25, help='number of cwt channels')
     parser.add_argument('--tlen', type=int, default=32, help='time length')
-    parser.add_argument('--epochs', type=int, default=1, help='number of epochs')
+    parser.add_argument('--epochs', type=int, default=70, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=64, help='batch size')
-    parser.add_argument('--k', type=int, default=2, help='k fold')
+    parser.add_argument('--k', type=int, default=10, help='k fold')
     parser.add_argument('--seed', type=int, default=42, help='manual seed')
     return parser.parse_args()
 
