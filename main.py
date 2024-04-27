@@ -30,7 +30,7 @@ def main(args):
 
     dataPath1 = f'/data/{data}'
     dataPath2 = f'/data/{data}-CWT20'
-    output_path = f'./outputs/{args.num_class}/train'
+    output_path = f'./outputs/{args.num_class}/common'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -39,20 +39,23 @@ def main(args):
         .format(data, args.num_class, args.epochs, args.batch_size, args.k, args.seed))
 
     for i in range(args.k):
-        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/sub{i + 1}_cwt.npy',
+        dataset = EEGDataset(file_path1=dataPath1 + f'/S{i + 1}.mat', file_path2=dataPath2 + f'/S{i + 1}_cwt.npy',
                              num_class=args.num_class)
 
         for fold, (train_i, test_i) in enumerate(kf.split(dataset)):
-            train_i, val_i = train_test_split(train_i, test_size=1/9, random_state=42)
+            train_i, val_i = train_test_split(train_i, test_size=1 / 9, random_state=42)
 
             train_sampler = SubsetRandomSampler(train_i)
             val_sampler = SubsetRandomSampler(val_i)
             test_sampler = SubsetRandomSampler(test_i)
-            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=args.batch_size, num_workers=3, prefetch_factor=2,
+            train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=args.batch_size, num_workers=3,
+                                      prefetch_factor=2,
                                       drop_last=True)
-            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=args.batch_size, num_workers=1, prefetch_factor=1,
+            val_loader = DataLoader(dataset, sampler=val_sampler, batch_size=args.batch_size, num_workers=1,
+                                    prefetch_factor=1,
                                     drop_last=True)
-            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=args.batch_size, num_workers=1,prefetch_factor=1,
+            test_loader = DataLoader(dataset, sampler=test_sampler, batch_size=args.batch_size, num_workers=1,
+                                     prefetch_factor=1,
                                      drop_last=True)
 
             n_train = len(train_loader) * args.batch_size
@@ -60,7 +63,8 @@ def main(args):
             n_test = len(test_loader) * args.batch_size
 
             # create model
-            model = CAW_MASA_STST.CAW_MASA_STST(classNum=args.num_class, channelNum=args.channelNum, chan_spe=args.chan_spe,
+            model = CAW_MASA_STST.CAW_MASA_STST(classNum=args.num_class, channelNum=args.channelNum,
+                                                chan_spe=args.chan_spe,
                                                 tlen=args.tlen).cuda()
 
             criterion = nn.CrossEntropyLoss()
@@ -104,20 +108,21 @@ def main(args):
                     avg_val_loss = np.mean(val_losses)
                     if avg_val_loss < best_val_loss:
                         best_val_loss = avg_val_loss
-                        torch.save(model, f'{output_path}/best_model_{i}_{fold}.pth')
+                        torch.save(model, f'{output_path}/best_model.pth')
                 elif base == 'acc':
                     # acc
                     avg_val_acc = np.mean(val_accuracy)
                     if avg_val_acc > best_val_acc:
                         best_val_acc = avg_val_acc
-                        torch.save(model, f'{output_path}/best_model_{i}_{fold}.pth')
+                        torch.save(model, f'{output_path}/best_model.pth')
                 else:
                     raise ValueError('base must be "loss" or "acc"')
 
             # test
             losses = []
             accuracy = []
-            torch.load(f'{output_path}/best_model_{i}_{fold}.pth')  # load best_model
+            model = torch.load(f'{output_path}/best_model.pth')
+            # model.load_state_dict(weight)  # load best_model
             test_loop = tqdm(test_loader, total=len(test_loader), file=sys.stdout)
             for (xx, xx_spe, yy) in test_loop:
                 test_loss, test_acc = test(model=model, criterion=criterion, x=xx, x_spe=xx_spe, y=yy)
@@ -154,6 +159,7 @@ def parse_args():
     parser.add_argument('--k', type=int, default=10, help='k fold')
     parser.add_argument('--seed', type=int, default=42, help='manual seed')
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     arg = parse_args()
